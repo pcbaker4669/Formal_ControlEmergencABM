@@ -15,6 +15,44 @@ __all__ = [
     "plot_sweep",
 ]
 
+def plot_control_timeline(history, threshold=None, outpath=None, title=None):
+    days = np.array([h["day"] for h in history], dtype=int)
+    incidents = np.array([h["incidents_total"] for h in history], dtype=float)
+    triggered = np.array([h["control_triggered_today"] for h in history], dtype=bool)
+    control_on = np.array([h["control_active"] for h in history], dtype=bool)
+
+    fig, ax = plt.subplots()
+    ax.plot(days, incidents, marker="o", linewidth=1)
+
+    # optional threshold line
+    if threshold is not None:
+        ax.axhline(threshold, linestyle="--")
+
+    # mark trigger days (vertical lines)
+    for d in days[triggered]:
+        ax.axvline(d, linestyle=":", linewidth=1)
+
+    # shade control-active days (light vertical bands)
+    for d in days[control_on]:
+        ax.axvspan(d - 0.5, d + 0.5, alpha=0.15)
+
+    ax.set_xlabel("Day")
+    ax.set_ylabel("Total incidents")
+    ax.set_title(title or "Incidents over time with triggers and control days")
+
+    # simple legend proxy
+    # (matplotlib doesn't auto-legend axvline/axvspan nicely without handles)
+    ax.text(0.01, 0.98,
+            "Dotted line = trigger day\nShaded = control active",
+            transform=ax.transAxes, va="top")
+
+    fig.tight_layout()
+
+    if outpath:
+        fig.savefig(outpath, dpi=200)
+        plt.close(fig)
+    else:
+        plt.show()
 
 def run_sweep():
     for rate in [0.12, 0.24, 0.36]:
@@ -56,7 +94,11 @@ def make_table1(base_params: dict, seeds=range(1, 51), out_csv="table1_baseline.
     keys = [
         "class_mean","class_q50","class_q90","class_q95","class_q99","class_max",
         "class_zero_frac","class_var_mean",
-        "at_risk_share_total","top5_share_students","student_zero_frac"
+        "at_risk_share_total","top5_share_students","student_zero_frac",
+        "control_days_total", "control_activation_count", "control_day_frac", 
+        "trigger_day_frac", "incidents_mean_control_on",
+        "incidents_mean_control_off", "trigger_day_mean_incidents", "next_day_after_trigger_mean_incidents",
+        "mean_drop_after_trigger"
     ]
 
     # Collect per-run rows
@@ -65,9 +107,14 @@ def make_table1(base_params: dict, seeds=range(1, 51), out_csv="table1_baseline.
         p = Params(**{**base_params, "seed": sd})
         out = simulate(p)
         s = out["summary"]
-        row = {k: float(s[k]) for k in keys}
-        row["seed"] = sd
-        rows.append(row)
+        row = {}
+        for k in keys:
+            if k in ("control_days_total", "control_activation_count"):
+                row[k] = int(s[k])
+            else:
+                row[k] = float(s[k])
+                row["seed"] = sd
+                rows.append(row)
 
     # Build numeric array for mean/sd
     X = np.array([[r[k] for k in keys] for r in rows], dtype=float)

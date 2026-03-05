@@ -9,7 +9,11 @@ from analysis import (
     tail_probabilities_class_counts,
     sweep_one_param,
     plot_sweep,
+    plot_control_timeline,
 )
+
+from model_core import Params, simulate
+
 # ----------------------------
 # Main
 # ----------------------------
@@ -27,6 +31,18 @@ def main():
         if k not in ("figures_dir", "data_dir")
     }
 
+        # --- New: single-run timeline plot for control ---
+    p = Params(**model_params)
+    result = simulate(p)
+
+    plot_control_timeline(
+        result["history"],
+        threshold=p.control_threshold,
+        outpath=os.path.join(figures_dir, "fig0_control_timeline_seed1.png"),
+        title=f"Incidents, spikes, triggers, and control (seed={p.seed})"
+    )
+
+
 
     # replicate_summaries(base_params)
     make_table1(model_params, seeds=range(1, 51), out_csv=os.path.join(data_dir, "table1_baseline.csv"))
@@ -36,7 +52,7 @@ def main():
         model_params,
         seeds=range(1, 51),
         out_png=os.path.join(figures_dir, "fig1_lorenz_concentration.png"),
-        out_pdf=os.path.join(figures_dir, "fig1_lorenz_concentration.pdf"),
+        # out_pdf=os.path.join(figures_dir, "fig1_lorenz_concentration.pdf"),
     )
 
     # Figure 2
@@ -44,7 +60,7 @@ def main():
         model_params,
         seeds=range(1, 51),
         out_png=os.path.join(figures_dir, "fig2_ccdf_class_counts.png"),
-        out_pdf=os.path.join(figures_dir, "fig2_ccdf_class_counts.pdf"),
+        #out_pdf=os.path.join(figures_dir, "fig2_ccdf_class_counts.pdf"),
         use_log_y=False,
     )
 
@@ -62,7 +78,7 @@ def main():
         xlabel="Risk dispersion (risk_sigma)",
         ylabel="Top 5% share of incidents",
         out_png=os.path.join(figures_dir, "fig3_sweep_risk_sigma_top5.png"),
-        out_pdf=os.path.join(figures_dir, "fig3_sweep_risk_sigma_top5.pdf")
+        #out_pdf=os.path.join(figures_dir, "fig3_sweep_risk_sigma_top5.pdf")
     )
 
     # nb_k -> burstiness (Var/Mean)
@@ -74,7 +90,7 @@ def main():
         xlabel="Burstiness (nb_k)",
         ylabel="Var/Mean of class-period counts",
         out_png=os.path.join(figures_dir, "fig4_sweep_nb_k_varmean.png"),
-        out_pdf=os.path.join(figures_dir, "fig4_sweep_nb_k_varmean.pdf")
+        # out_pdf=os.path.join(figures_dir, "fig4_sweep_nb_k_varmean.pdf")
     )
 
 
@@ -87,7 +103,7 @@ def main():
         xlabel="Baseline incident rate (inc_base_rate)",
         ylabel="Mean incidents per class-period",
         out_png=os.path.join(figures_dir, "fig5_sweep_inc_base_rate_level.png"),
-        out_pdf=os.path.join(figures_dir, "fig5_sweep_inc_base_rate_level.pdf")
+        # out_pdf=os.path.join(figures_dir, "fig5_sweep_inc_base_rate_level.pdf")
     )
 
 

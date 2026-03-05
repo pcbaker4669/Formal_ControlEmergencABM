@@ -43,8 +43,8 @@ class Params:
 
     # Simple control rule
     control_threshold: int = 15          # if total incidents exceed this, tighten control
-    control_multiplier: float = 0.75     # multiply incident rate by this under control
-    control_duration_days: int = 1       # how long control stays on
+    control_multiplier: float = 0.5     # multiply incident rate by this under control (lower => stronger control)
+    control_duration_days: int = 4       # how long control stays on
 
 
     # nb_k is the shape parameter (k) that forces the model to follow a Negative Binomial 
@@ -172,19 +172,22 @@ class Model:
                 "control_active": control_active,
             })
 
+        triggered_today = total_incidents_today > self.p.control_threshold
+
         self.history.append({
             "day": day,
             "active_population": active_n,
             "incidents_total": total_incidents_today,
             "control_active": control_active,
+            "control_triggered_today": triggered_today,
         })
 
-        # First, count down existing control
+        # First, count down any control that was active today
         if self.control_days_left > 0:
             self.control_days_left -= 1
 
-        # Then, if today was a "bad day," activate control for upcoming days
-        if total_incidents_today > self.p.control_threshold:
+        # Then, if today was a trigger day, activate control for upcoming days
+        if triggered_today:
             self.control_days_left = self.p.control_duration_days
 
 
@@ -239,6 +242,9 @@ class Model:
     def summary(self):
         daily = np.array([h["incidents_total"] for h in self.history], dtype=float)
 
+        control_on = np.array([h["control_active"] for h in self.history], dtype=bool)
+        triggered = np.array([h["control_triggered_today"] for h in self.history], dtype=bool)
+
         student_totals = np.array([s.incidents_total for s in self.students], dtype=float)
 
         active_records = [r for r in self.class_day_records if r["class_size_active"] > 0]
@@ -252,6 +258,14 @@ class Model:
             dtype=float
         )
         at_risk_per_student = at_risk_totals / np.maximum(at_risk_n_active, 1.0)
+
+        trigger_day_incidents = []
+        next_day_incidents_after_trigger = []
+
+        for i in range(len(self.history) - 1):
+            if self.history[i]["control_triggered_today"]:
+                trigger_day_incidents.append(self.history[i]["incidents_total"])
+                next_day_incidents_after_trigger.append(self.history[i + 1]["incidents_total"])
 
         out = {
             "daily_mean": float(daily.mean()),
@@ -274,6 +288,30 @@ class Model:
             "top1_share_students": float(self.share_top(student_totals, 0.01)),
             "student_zero_frac": float((student_totals == 0).mean()),
         }
+
+        out.update({
+            "control_days_total": int(control_on.sum()),
+            "control_activation_count": int(triggered.sum()),
+            "control_day_frac": float(control_on.mean()),
+            "trigger_day_frac": float(triggered.mean()),
+            "incidents_mean_control_on": float(daily[control_on].mean()) if control_on.any() else 0.0,
+            "incidents_mean_control_off": float(daily[~control_on].mean()) if (~control_on).any() else 0.0,
+        })
+
+        out.update({
+            "trigger_day_mean_incidents": (
+                float(np.mean(trigger_day_incidents)) if trigger_day_incidents else 0.0
+            ),
+            "next_day_after_trigger_mean_incidents": (
+                float(np.mean(next_day_incidents_after_trigger)) if next_day_incidents_after_trigger else 0.0
+            ),
+            "mean_drop_after_trigger": (
+                float(np.mean(trigger_day_incidents) - np.mean(next_day_incidents_after_trigger))
+                if trigger_day_incidents and next_day_incidents_after_trigger
+                else 0.0
+            ),
+        })
+
         return out
     
 

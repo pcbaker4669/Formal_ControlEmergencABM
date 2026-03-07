@@ -31,6 +31,21 @@ def main():
         if k not in ("figures_dir", "data_dir")
     }
 
+        # --- Control strength demo: same seed, vary control multiplier ---
+    base_for_timeline = dict(model_params)
+    base_for_timeline["control_duration_days"] = 4
+
+    for mult in (1.0, 0.75, 0.5):
+        p = Params(**{**base_for_timeline, "control_multiplier": mult, "seed": 1})
+        result = simulate(p)
+        tag = str(mult).replace(".", "_")
+        plot_control_timeline(
+            result["history"],
+            threshold=p.control_threshold,
+            outpath=os.path.join(figures_dir, f"fig0_control_timeline_mult_{tag}.png"),
+            title=f"Control strength demo (mult={mult}, duration=4, seed=1)"
+        )
+
         # --- New: single-run timeline plot for control ---
     p = Params(**model_params)
     result = simulate(p)

@@ -1,164 +1,151 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18148012.svg)](https://doi.org/10.5281/zenodo.18148012)
+# Disorder, Tail Risk, and the Emergence of Control (Toy ABM)
 
-# An Agent-Based Disruption Generator for Classrooms (Lognormal Risk + Gamma–Poisson Counts)
+This project is a small, presentation-ready agent-based modeling (ABM) sandbox built from a **classroom disruption generator** and adapted for an *Origins of Social Complexity* framing:
 
-Reference implementation for the disruption-only agent-based model (ABM) used in the paper:
+- **Disorder is concentrated**: a small fraction of individuals can generate a large share of incidents.
+- **Disorder is bursty**: long quiet stretches punctuated by spikes (tail events).
+- **Control emerges as a response**: when incidents exceed a threshold, the model enters a temporary “tight control” regime that reduces incident rates.
 
-**An Agent-Based Disruption Generator for Classrooms Using Lognormal Risk and Gamma–Poisson Counts**  
-Peter C. Baker (George Mason University)
+The model is intentionally simple (toy-scale) and designed for clear, reproducible figures rather than realism.
 
-## What this model does
+---
 
-The model generates **incident counts** for a classroom setting with fixed rosters. Each student is an agent with a stable latent disruption propensity (“risk”) drawn from a **lognormal distribution** (between-student heterogeneity). For each class session (represented here as one **class-day record**), incidents are generated using a **Gamma–Poisson mixture**, producing **overdispersed** (bursty) totals with occasional spikes.
+## Project structure
 
-This repository is designed as a **reusable core generator** that can be embedded into larger classroom ABMs (instructional time loss, learning dynamics, interventions, etc.).
+- `model_core.py`  
+  Core ABM: parameters, student agents, population growth schedule, disruption process (Gamma–Poisson / Negative Binomial mixture), and the control rule.
+- `analysis.py`  
+  Analysis + figure generation helpers (tables, Lorenz curve, CCDF, parameter sweeps, and the control timeline plot).
+- `main.py`  
+  Orchestrates runs using `config.json`, writes tables, and generates figures.
+- `config.json`  
+  Default run configuration (model parameters + output directories).
+- `data/` (generated)  
+  CSV outputs (e.g., Table 1 runs across seeds).
+- `figures/` (generated)  
+  Saved plots (PNG/PDF).
 
-## Incident definition (measurement)
+---
 
-**Incident:** one discrete rule-/norm-violation event counted within a single observation window (a “class-period” or “class session”).  
-In this implementation, the simulation time step is labeled as **day**, and the main record is **one row per class per day** (`class_day_records`). If your empirical study uses a different observation window (e.g., 45 vs 90 minutes), treat the simulated “day” as *one observation window* and calibrate rates accordingly.
+## Model overview
 
-Incidents are **not severity-weighted** in this implementation.
+### Population growth (scalar stress proxy)
+The simulation runs for `n_days` (default 90). The active population grows in stages:
 
-## Repository layout
+- Days 1–30: `pop_stage_1` (e.g., 30)
+- Days 31–60: `pop_stage_2` (e.g., 60)
+- Days 61–90: `pop_stage_3` (e.g., 100)
 
-- `model_core.py` — core ABM components: `Params`, `Student`, `Model`, `simulate()`  
-- `analysis.py` — analysis + plotting utilities used to produce paper artifacts  
-- `main.py` — orchestration script that reads `config.json`, runs replications, and saves tables/figures  
-- `README.md` — this file
+All agents exist from the start, but only the first `active_n` are “active” on a given day (toy simplification).
 
-## Requirements
+### Disruption generation (bursty counts)
+Each individual has a fixed latent risk drawn from a lognormal distribution (`risk_mu`, `risk_sigma`) that controls inequality/concentration.
 
-- Python 3.10+ recommended
-- NumPy
-- Matplotlib
+Daily incident counts are generated using a Gamma–Poisson mixture:
+- Draw a volatile daily rate `lam_tilde ~ Gamma(k, scale=lam/k)`
+- Draw realized incidents `k_i ~ Poisson(lam_tilde)`
 
-Install dependencies:
+This yields overdispersed (bursty) counts consistent with Negative Binomial behavior.
 
+### Control rule (emergence of formal control)
+If total incidents on a day exceed `control_threshold`, the model activates “control” for `control_duration_days` starting the **next day**.
+During control, individual incident rates are multiplied by `control_multiplier` (e.g., 0.75 or 0.5).
+
+The daily history records:
+- `incidents_total`
+- `control_active`
+- `control_triggered_today`
+
+The summary includes:
+- control activations, share of control days
+- average incidents under control vs not
+- mean change from trigger day to the next day (effect proxy)
+
+---
+
+## Quick start
+
+### 1) Create and activate a virtual environment (recommended)
+
+**Windows (PowerShell):**
+```bash
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+**macOS/Linux:**
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+### 2) Install requirements
+```bash
+pip install -r requirements.txt
+```
+If you don’t have a `requirements.txt`, these are typically sufficient:
 ```bash
 pip install numpy matplotlib
 ```
 
-## Quickstart
+### 3) Configure the run
+Edit `config.json` to adjust the model:
+- `n_students`, `n_days`, `class_size`
+- `pop_stage_1`, `pop_stage_2`, `pop_stage_3`
+- `inc_base_rate`, `nb_k`, `risk_mu`, `risk_sigma`
+- `control_threshold`, `control_multiplier`, `control_duration_days`
+- `figures_dir`, `data_dir`
 
-### 1) Create a `config.json`
-
-`main.py` reads a JSON config file from the project root. Two optional keys control output folders:
-
-- `figures_dir` (default: `"figures"`)
-- `data_dir` (default: `"data"`)
-
-All other keys are passed into `Params(...)`.
-
-Example `config.json` (paper-style baseline):
-
-```json
-{
-  "seed": 1,
-  "n_students": 300,
-  "class_size": 30,
-  "n_days": 90,
-
-  "risk_mu": -0.78,
-  "risk_sigma": 1.6,
-  "nb_k": 0.5,
-  "inc_base_rate": 0.24,
-  "at_risk_top_n": 3,
-
-  "figures_dir": "figures",
-  "data_dir": "data"
-}
-```
-
-### 2) Run the paper artifacts
-
+### 4) Run everything
 ```bash
 python main.py
 ```
 
-By default, `main.py` runs **50 replications** (`seed=1..50`) and produces:
+This generates:
+- `data/table1_baseline.csv` (multi-seed summary table)
+- `figures/` plots (Lorenz, CCDF, sweeps, and control timeline if enabled in `main.py`)
 
-- **Table 1** (baseline summary metrics, mean ± SD across replications)
-- **Figure 1** (Lorenz curve: concentration of incidents across students)
-- **Figure 2** (CCDF: tail / spikes in class-session incident counts)
-- Tail probabilities printed to console: `P(X >= 10)`, `P(X >= 20)`, `P(X >= 30)`
+---
 
-It also runs one-factor-at-a-time (OFAT) sensitivity sweeps (Figures 3–5).
+## Suggested “demo” runs for class
 
-### Output files
+### Control strength comparison (same seed)
+Keep:
+- `control_duration_days = 4`
+Compare:
+- `control_multiplier = 1.0` (placebo)
+- `control_multiplier = 0.75` (mild)
+- `control_multiplier = 0.5` (strong)
 
-With the default folder names, outputs are written to:
+Then generate three timeline plots to visually show spikes, triggers, and the post-trigger regime.
 
-- `data/table1_baseline.csv` (mean ± SD across seeds)
-- `data/table1_baseline_per_run.csv` (per-seed summaries)
-- `figures/fig1_lorenz_concentration.png` and `.pdf`
-- `figures/fig2_ccdf_class_counts.png` and `.pdf`
-- `figures/fig3_sweep_risk_sigma_top5.png` and `.pdf`
-- `figures/fig4_sweep_nb_k_varmean.png` and `.pdf`
-- `figures/fig5_sweep_inc_base_rate_level.png` and `.pdf`
+---
 
-## Using the generator programmatically
+## Outputs you’ll likely use in slides
 
-```python
-from model_core import Params, simulate
+- **Timeline plot:** incidents over time with trigger markers + shaded control days  
+  (from `plot_control_timeline` in `analysis.py`)
+- **Lorenz curve:** concentration of incidents across individuals
+- **CCDF / tail probabilities:** frequency of extreme class/day incident counts
+- **Table 1:** multi-seed summary statistics (means, quantiles, concentration)
 
-p = Params(
-    seed=1,
-    n_students=300,
-    class_size=30,
-    n_days=90,
-    risk_mu=-0.78,
-    risk_sigma=1.6,
-    nb_k=0.5,
-    inc_base_rate=0.24,
-    at_risk_top_n=3,
-)
-
-out = simulate(p)
-
-# Core outputs
-history = out["history"]                      # one row per day (overall totals)
-class_day_records = out["class_day_records"]  # one row per class per day
-students = out["students"]                    # per-student totals + metadata
-summary = out["summary"]                      # aggregate metrics (stable keys)
-```
-
-## Model structure (core)
-
-- **Params** (dataclass): configuration and parameters  
-- **Student**: agent with stable latent `risk` and accumulated `incidents_total`  
-- **Model**:
-  - draws student risks (lognormal)
-  - partitions students into fixed class rosters
-  - simulates `n_days` time steps
-  - records one count per class per day and computes summary metrics
-
-## Parameters and interpretation
-
-Key parameters (see `Params` in `model_core.py`):
-
-- **`inc_base_rate`**: sets overall incident level (scales expected counts linearly)
-- **`risk_sigma`**: controls concentration/inequality across students (higher values → more unequal contribution)
-- **`nb_k`**: controls burstiness/overdispersion (lower values → heavier tails and more spikes)
-- **`risk_mu`**: shifts overall system load via the lognormal mean (often calibrated jointly with `inc_base_rate`)
-- **`at_risk_top_n`**: defines an “at-risk” subgroup within each class as the top‑N risk students (fixed for a run)
-
-Notes:
-- `model_core.py` defines defaults for all parameters; `config.json` is the intended way to set paper baselines and calibration targets.
-- In `Model.step_day`, each student’s expected rate is `inc_base_rate * risk`, and counts are generated via a Gamma–Poisson mixture.
+---
 
 ## Reproducibility
 
-The model uses NumPy’s RNG (`numpy.random.default_rng`) seeded per replication.  
-Baseline statistics in the paper are generated by running **multiple seeds** (default: 50) and summarizing outputs as mean ± SD across replications.
+- Randomness is controlled by `seed`.
+- Many outputs in `main.py` run across `seeds=range(1, 51)` by default.
+- For “clean comparisons,” keep the seed fixed and vary one parameter at a time.
 
-## Citation
+---
 
-If you use this code, please cite the software record (and the paper, if/when published):
+## Notes / limitations (intentional)
 
-Baker, P. C. (2026). *An Agent-Based Disruption Generator for Classrooms Using Lognormal Risk and Gamma–Poisson Counts* (Version v1.0.0) [Software]. Zenodo. https://doi.org/10.5281/zenodo.18148012
+This is a **toy model**. It abstracts away many real mechanisms (learning, adaptation, targeting, legitimacy costs, spatial spillovers, etc.) to focus on a single conceptual point:
+
+> concentrated + bursty disorder creates pressure for formal control, especially as population scale increases.
+
+---
 
 ## License
-
-Add a license before wider distribution (common choices: MIT, BSD-3, Apache-2.0).  
-If you do not include a license, others technically cannot reuse the code.
+Use freely for coursework and teaching materials. Add a license if you plan to publish or distribute widely.

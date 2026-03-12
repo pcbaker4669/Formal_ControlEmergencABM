@@ -31,7 +31,7 @@ def main():
         if k not in ("figures_dir", "data_dir")
     }
 
-        # --- Control strength demo: same seed, vary control multiplier ---
+    # --- Control strength demo: varying control_multiplier (0.5, 0.75, 1.0) with fixed duration=4, using baseline parameters otherwise ---
     base_for_timeline = dict(model_params)
     base_for_timeline["control_duration_days"] = 4
 
@@ -46,7 +46,7 @@ def main():
             title=f"Control strength demo (mult={mult}, duration=4, seed=1)"
         )
 
-        # --- New: single-run timeline plot for control ---
+    # --- Single-run timeline plot: using baseline parameters from config.json ---
     p = Params(**model_params)
     result = simulate(p)
 
@@ -60,31 +60,31 @@ def main():
 
 
     # replicate_summaries(base_params)
+    # Table 1: Baseline summary statistics using parameters from config.json
     make_table1(model_params, seeds=range(1, 51), out_csv=os.path.join(data_dir, "table1_baseline.csv"))
 
-    # Figure 1: Lorenz curve (student concentration)
+    # Figure 1: Lorenz curve (student concentration) using baseline parameters from config.json
     plot_lorenz_from_model(
         model_params,
         seeds=range(1, 51),
         out_png=os.path.join(figures_dir, "fig1_lorenz_concentration.png"),
-        # out_pdf=os.path.join(figures_dir, "fig1_lorenz_concentration.pdf"),
+        out_pdf=None,
     )
 
-    # Figure 2
+    # Figure 2: CCDF of class incident counts using baseline parameters from config.json
     plot_ccdf_class_counts(
         model_params,
         seeds=range(1, 51),
         out_png=os.path.join(figures_dir, "fig2_ccdf_class_counts.png"),
-        #out_pdf=os.path.join(figures_dir, "fig2_ccdf_class_counts.pdf"),
-        use_log_y=False,
+        out_pdf=None,
     )
 
+    # Tail probabilities: P(class incidents > threshold) using baseline parameters from config.json
     tail_probabilities_class_counts(model_params, seeds=range(1, 51), thresholds=(10, 20, 30))
 
-    # --- Sensitivity / robustness (OFAT) ---
-    seeds = range(1, 51)
+    # --- Sensitivity / robustness (OFAT) using baseline parameters from config.json ---
 
-    # risk_sigma -> concentration
+    # Figure 3: Sensitivity of concentration (top 5% share) to risk dispersion (risk_sigma), varying risk_sigma values
     rows_sigma = sweep_one_param(model_params, "risk_sigma", values=[1.0, 1.2, 1.4, 1.6, 1.8, 2.0], seeds=seeds)
     plot_sweep(
         rows_sigma,
@@ -93,10 +93,10 @@ def main():
         xlabel="Risk dispersion (risk_sigma)",
         ylabel="Top 5% share of incidents",
         out_png=os.path.join(figures_dir, "fig3_sweep_risk_sigma_top5.png"),
-        #out_pdf=os.path.join(figures_dir, "fig3_sweep_risk_sigma_top5.pdf")
+        out_pdf=None,
     )
 
-    # nb_k -> burstiness (Var/Mean)
+    # Figure 4: Sensitivity of overdispersion (Var/Mean) to burstiness (nb_k), varying nb_k values
     rows_k = sweep_one_param(model_params, "nb_k", values=[0.2, 0.3, 0.5, 0.8, 1.0, 1.5], seeds=seeds)
     plot_sweep(
         rows_k,
@@ -105,11 +105,10 @@ def main():
         xlabel="Burstiness (nb_k)",
         ylabel="Var/Mean of class-period counts",
         out_png=os.path.join(figures_dir, "fig4_sweep_nb_k_varmean.png"),
-        # out_pdf=os.path.join(figures_dir, "fig4_sweep_nb_k_varmean.pdf")
+        out_pdf=None,
     )
 
-
-    # inc_base_rate -> level (class_mean)
+    # Figure 5: Sensitivity of incident level (class_mean) to baseline rate (inc_base_rate), varying inc_base_rate values
     rows_rate = sweep_one_param(model_params, "inc_base_rate", values=[0.12, 0.18, 0.24, 0.30, 0.36], seeds=seeds)
     plot_sweep(
         rows_rate,
@@ -118,7 +117,7 @@ def main():
         xlabel="Baseline incident rate (inc_base_rate)",
         ylabel="Mean incidents per class-period",
         out_png=os.path.join(figures_dir, "fig5_sweep_inc_base_rate_level.png"),
-        # out_pdf=os.path.join(figures_dir, "fig5_sweep_inc_base_rate_level.pdf")
+        out_pdf=None,
     )
 
 

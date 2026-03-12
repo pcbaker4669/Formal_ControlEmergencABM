@@ -14,6 +14,10 @@
   "stage_2_start": 31,
   "stage_3_start": 61,
 
+  "control_threshold": 15,
+  "control_multiplier": 0.5,
+  "control_duration_days": 4,
+
   "figures_dir": "figures",
   "data_dir": "data"
 }

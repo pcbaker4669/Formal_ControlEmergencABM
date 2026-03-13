@@ -5,8 +5,9 @@ import os
 from analysis import (
     make_table1,
     plot_lorenz_from_model,
-    plot_ccdf_class_counts,
-    tail_probabilities_class_counts,
+    plot_ccdf_polity_counts,
+    plot_negative_binomial_distribution,
+    tail_probabilities_polity_counts,
     sweep_one_param,
     plot_sweep,
     plot_control_timeline,
@@ -52,11 +53,16 @@ def main():
         out_png=os.path.join(figures_dir, "fig_poisson.png"),
     )
 
+    plot_negative_binomial_distribution(
+        r=model_params["nb_k"],
+        mean_=3.0,
+        max_x=10,
+        out_png=os.path.join(figures_dir, "fig_negative_binomial.png")
+    )    
+
     # --- Control strength demo: varying control_multiplier (0.5, 0.75, 1.0) with fixed duration=4, using baseline parameters otherwise ---
     base_for_timeline = dict(model_params)
     base_for_timeline["control_duration_days"] = 4
-
-
 
     for mult in (1.0, 0.75, 0.5):
         p = Params(**{**base_for_timeline, "control_multiplier": mult, "seed": 1})
@@ -80,8 +86,6 @@ def main():
         title=f"Incidents, spikes, triggers, and control (seed={p.seed})"
     )
 
-
-
     # replicate_summaries(base_params)
     # Table 1: Baseline summary statistics using parameters from config.json
     make_table1(model_params, seeds=range(1, 51), out_csv=os.path.join(data_dir, "table1_baseline.csv"))
@@ -94,16 +98,16 @@ def main():
         out_pdf=None,
     )
 
-    # Figure 2: CCDF of class incident counts using baseline parameters from config.json
-    plot_ccdf_class_counts(
+    # Figure 2: CCDF of polity incident counts using baseline parameters from config.json
+    plot_ccdf_polity_counts(
         model_params,
         seeds=range(1, 51),
-        out_png=os.path.join(figures_dir, "fig2_ccdf_class_counts.png"),
+        out_png=os.path.join(figures_dir, "fig2_ccdf_polity_counts.png"),
         out_pdf=None,
     )
 
-    # Tail probabilities: P(class incidents > threshold) using baseline parameters from config.json
-    tail_probabilities_class_counts(model_params, seeds=range(1, 51), thresholds=(10, 20, 30))
+    # Tail probabilities: P(polity incidents > threshold) using baseline parameters from config.json
+    tail_probabilities_polity_counts(model_params, seeds=range(1, 51), thresholds=(10, 20, 30))
 
     # --- Sensitivity / robustness (OFAT) using baseline parameters from config.json ---
 
@@ -129,24 +133,22 @@ def main():
         y_key="varmean_mean", yerr_key="varmean_sd",
         title="Sensitivity: Overdispersion vs Burstiness",
         xlabel="Burstiness (nb_k)",
-        ylabel="Var/Mean of class-period counts",
+        ylabel="Var/Mean of polity-period counts",
         out_png=os.path.join(figures_dir, "fig4_sweep_nb_k_varmean.png"),
         out_pdf=None,
     )
 
-    # Figure 5: Sensitivity of incident level (class_mean) to baseline rate (inc_base_rate), varying inc_base_rate values
+    # Figure 5: Sensitivity of incident level (polity_mean) to baseline rate (inc_base_rate), varying inc_base_rate values
     rows_rate = sweep_one_param(model_params, "inc_base_rate", values=[0.12, 0.18, 0.24, 0.30, 0.36], seeds=seeds)
     plot_sweep(
         rows_rate,
-        y_key="class_mean_mean", yerr_key="class_mean_sd",
+        y_key="polity_mean_mean", yerr_key="polity_mean_sd",
         title="Sensitivity: Incident level vs Baseline incident rate",
         xlabel="Baseline incident rate (inc_base_rate)",
-        ylabel="Mean incidents per class-period",
+        ylabel="Mean incidents per polity-period",
         out_png=os.path.join(figures_dir, "fig5_sweep_inc_base_rate_level.png"),
         out_pdf=None,
     )
-
-
 
 if __name__ == "__main__":
     main()

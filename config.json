@@ -1,7 +1,7 @@
 {
   "n_students": 100,
   "n_days": 90,
-  "class_size": 30,
+  "polity_size": 30,
   "risk_mu": -0.78,
   "risk_sigma": 1.6,
   "nb_k": 0.5,

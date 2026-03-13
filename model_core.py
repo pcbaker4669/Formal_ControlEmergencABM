@@ -1,7 +1,7 @@
-"""Core model components for the classroom disruption generator.
+"""Core model components for the polity disruption generator.
 
-Inputs: a Params instance (seed, student count, class size, rates, and days).
-Outputs: history (daily totals), class_day_records (per-class/day rows),
+Inputs: a Params instance (seed, student count, polity size, rates, and days).
+Outputs: history (daily totals), polity_day_records (per-polity/day rows),
 students (per-student totals), and a summary dict of aggregate metrics.
 Public API: Params, Student, Model, simulate; summary keys are stable outputs.
 Basic use: call simulate(params) for a one-shot run or Model(params).run().
@@ -23,8 +23,8 @@ class Params:
     n_students: int = 100
     n_days: int = 90
 
-    # Class structure
-    class_size: int = 30  # fixed size (you can generalize later)
+    # polity structure
+    polity_size: int = 30  # fixed size (you can generalize later)
 
     # Population growth schedule (simple 3-stage version)
     pop_stage_1: int = 30
@@ -35,10 +35,10 @@ class Params:
     stage_2_start: int = 31
     stage_3_start: int = 61   
 
-    # Disruption process, this scales class_mean (incident rate) linearly
-    # 0.02 -> class_mean ~ 0.83,
-    # if you want class_mean ~ 5 then .2 * (5/0.83) ~ 0.12
-    # 0.24 -> class_mean ~ 10, 0.36 -> class_mean ~ .15
+    # Disruption process, this scales polity_mean (incident rate) linearly
+    # 0.02 -> polity_mean ~ 0.83,
+    # if you want polity_mean ~ 5 then .2 * (5/0.83) ~ 0.12
+    # 0.24 -> polity_mean ~ 10, 0.36 -> polity_mean ~ .15
     inc_base_rate: float = 0.02   # baseline expected incidents per student per day (before modifiers)
 
     # Simple control rule
@@ -49,7 +49,7 @@ class Params:
 
     # nb_k is the shape parameter (k) that forces the model to follow a Negative Binomial 
     # (nb) distribution, thereby producing the specific "burstiness" required to match 
-    # empirical classroom data.
+    # empirical polityroom data.
     nb_k: float = 0.5           # dispersion; smaller => heavier tail, (originally 1)
                                 # .5 - moderate burstiness
                                 # .2 - strong burstiness
@@ -85,24 +85,24 @@ class Model:
         self.rng = np.random.default_rng(p.seed)
 
         self.students = self._init_students()
-        self.classes = self._init_classes()
+        self.polities = self._init_polities()
 
-        # map student -> class_id (useful for tables)
-        self.class_of = {}
-        for cid, cls in enumerate(self.classes):
+        # map student -> polity_id (useful for tables)
+        self.polity_of = {}
+        for cid, cls in enumerate(self.polities):
             for sid in cls:
-                self.class_of[int(sid)] = cid
+                self.polity_of[int(sid)] = cid
 
-        # define "at-risk" as top-N risk students per class (fixed for the run)
-        self.at_risk_by_class = []
-        for cls in self.classes:
+        # define "at-risk" as top-N risk students per polity (fixed for the run)
+        self.at_risk_by_polity = []
+        for cls in self.polities:
             cls_ids = np.array([int(sid) for sid in cls])
             cls_risks = np.array([self.students[sid].risk for sid in cls_ids])
             top_idx = np.argsort(cls_risks)[::-1][: self.p.at_risk_top_n]
-            self.at_risk_by_class.append(set(cls_ids[top_idx].tolist()))
+            self.at_risk_by_polity.append(set(cls_ids[top_idx].tolist()))
 
         self.history = []             # one row per day (overall totals)
-        self.class_day_records = []   # one row per class per day (literature-aligned)
+        self.polity_day_records = []   # one row per polity per day (literature-aligned)
 
         self.control_days_left = 0  # tracks how many days of control remain after a trigger 
 
@@ -111,10 +111,10 @@ class Model:
         risk = self.rng.lognormal(mean=self.p.risk_mu, sigma=self.p.risk_sigma, size=self.p.n_students)
         return [Student(sid=i, risk=risk[i]) for i in range(self.p.n_students)]
 
-    def _init_classes(self) -> list[np.ndarray]:
-        # Partition students into fixed classes (rosters).
+    def _init_polities(self) -> list[np.ndarray]:
+        # Partition students into fixed polities (rosters).
         order = self.rng.permutation(self.p.n_students)
-        return [order[i:i + self.p.class_size] for i in range(0, self.p.n_students, self.p.class_size)]
+        return [order[i:i + self.p.polity_size] for i in range(0, self.p.n_students, self.p.polity_size)]
 
     def step_day(self, day: int):
         total_incidents_today = 0
@@ -122,12 +122,12 @@ class Model:
 
         control_active = self.control_days_left > 0
         
-        for cid, cls in enumerate(self.classes):
-            class_total = 0
+        for cid, cls in enumerate(self.polities):
+            polity_total = 0
             at_risk_total = 0
 
-            at_risk_set = self.at_risk_by_class[cid]
-            active_class_size = 0
+            at_risk_set = self.at_risk_by_polity[cid]
+            active_polity_size = 0
             active_at_risk_n = 0
 
             for sid in cls:
@@ -135,7 +135,7 @@ class Model:
                 if sid >= active_n:
                     continue  # student not active yet
 
-                active_class_size += 1
+                active_polity_size += 1
                 s = self.students[sid]
 
                 lam = self.p.inc_base_rate * s.risk
@@ -151,22 +151,22 @@ class Model:
                 # Poisson distribution predicts the probability of k events occurring within that interval
                 k_i = int(self.rng.poisson(lam_tilde))
                 s.incidents_total += k_i
-                class_total += k_i
+                polity_total += k_i
                 total_incidents_today += k_i
 
                 if sid in at_risk_set:
                     active_at_risk_n += 1
                     at_risk_total += k_i
 
-            self.class_day_records.append({
+            self.polity_day_records.append({
                 "day": day,
-                "class_id": cid,
-                "class_size_nominal": len(cls),
-                "class_size_active": active_class_size,
+                "polity_id": cid,
+                "polity_size_nominal": len(cls),
+                "polity_size_active": active_polity_size,
                 "active_population": active_n,
-                "incidents_class": class_total,
+                "incidents_polity": polity_total,
                 "incidents_at_risk": at_risk_total,
-                "incidents_nonrisk": class_total - at_risk_total,
+                "incidents_nonrisk": polity_total - at_risk_total,
                 "at_risk_n": len(at_risk_set),
                 "at_risk_n_active": active_at_risk_n,
                 "control_active": control_active,
@@ -228,7 +228,7 @@ class Model:
 
             rows.append({
                 "sid": s.sid,
-                "class_id": self.class_of[s.sid],
+                "polity_id": self.polity_of[s.sid],
                 "risk": s.risk,
                 "incidents_total": s.incidents_total,
                 "active_days": active_days,
@@ -247,12 +247,12 @@ class Model:
 
         student_totals = np.array([s.incidents_total for s in self.students], dtype=float)
 
-        active_records = [r for r in self.class_day_records if r["class_size_active"] > 0]
+        active_records = [r for r in self.polity_day_records if r["polity_size_active"] > 0]
 
-        class_totals = np.array([r["incidents_class"] for r in active_records], dtype=float)
+        polity_totals = np.array([r["incidents_polity"] for r in active_records], dtype=float)
         at_risk_totals = np.array([r["incidents_at_risk"] for r in active_records], dtype=float)
 
-        # divide by the number of at-risk students who were actually present in that class on that day.
+        # divide by the number of at-risk students who were actually present in that polity on that day.
         at_risk_n_active = np.array(
             [r["at_risk_n_active"] for r in active_records],
             dtype=float
@@ -271,18 +271,18 @@ class Model:
             "daily_mean": float(daily.mean()),
             "daily_var_mean": float(daily.var(ddof=1) / max(daily.mean(), 1e-12)),
 
-            "class_mean": float(class_totals.mean()),
-            "class_var_mean": float(class_totals.var(ddof=1) / max(class_totals.mean(), 1e-12)),
-            "class_zero_frac": float((class_totals == 0).mean()),
-            "class_q50": float(np.quantile(class_totals, 0.50)),
-            "class_q90": float(np.quantile(class_totals, 0.90)),
-            "class_q95": float(np.quantile(class_totals, 0.95)),
-            "class_q99": float(np.quantile(class_totals, 0.99)),
-            "class_max": float(class_totals.max()),
+            "polity_mean": float(polity_totals.mean()),
+            "polity_var_mean": float(polity_totals.var(ddof=1) / max(polity_totals.mean(), 1e-12)),
+            "polity_zero_frac": float((polity_totals == 0).mean()),
+            "polity_q50": float(np.quantile(polity_totals, 0.50)),
+            "polity_q90": float(np.quantile(polity_totals, 0.90)),
+            "polity_q95": float(np.quantile(polity_totals, 0.95)),
+            "polity_q99": float(np.quantile(polity_totals, 0.99)),
+            "polity_max": float(polity_totals.max()),
 
-            "at_risk_class_mean": float(at_risk_totals.mean()),
+            "at_risk_polity_mean": float(at_risk_totals.mean()),
             "at_risk_per_student_mean": float(at_risk_per_student.mean()),
-            "at_risk_share_total": float(at_risk_totals.sum() / max(class_totals.sum(), 1e-12)),
+            "at_risk_share_total": float(at_risk_totals.sum() / max(polity_totals.sum(), 1e-12)),
 
             "top5_share_students": float(self.share_top(student_totals, 0.05)),
             "top1_share_students": float(self.share_top(student_totals, 0.01)),
@@ -321,7 +321,7 @@ def simulate(params: Params) -> dict:
     m.run()
     return {
         "history": m.history,
-        "class_day_records": m.class_day_records,
+        "polity_day_records": m.polity_day_records,
         "students": m.student_table(),
         "summary": m.summary(),
     }

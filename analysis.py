@@ -1,4 +1,4 @@
-"""Analysis and plotting utilities for the classroom disruption model."""
+"""Analysis and plotting utilities for the polity disruption model."""
 
 from model_core import Model, Params, simulate
 import numpy as np
@@ -11,8 +11,8 @@ from scipy.stats import lognorm, gamma, poisson
 __all__ = [
     "make_table1",
     "plot_lorenz_from_model",
-    "plot_ccdf_class_counts",
-    "tail_probabilities_class_counts",
+    "plot_ccdf_polity_counts",
+    "tail_probabilities_polity_counts",
     "sweep_one_param",
     "plot_sweep",
 ]
@@ -63,15 +63,15 @@ def run_sweep():
         s = out["summary"]
 
         print("\ninc_base_rate =", rate)
-        for k in ["class_mean","class_q50","class_q90","class_q95","class_q99","class_max",
-                  "class_zero_frac","class_var_mean",
+        for k in ["polity_mean","polity_q50","polity_q90","polity_q95","polity_q99","polity_max",
+                  "polity_zero_frac","polity_var_mean",
                   "at_risk_share_total","top5_share_students","student_zero_frac"]:
             print(k, "=", round(float(s[k]), 4))
 
 def replicate_summaries(base_params, seeds=range(1, 51)):
     keys = [
-        "class_mean","class_q50","class_q90","class_q95","class_q99","class_max",
-        "class_zero_frac","class_var_mean",
+        "polity_mean","polity_q50","polity_q90","polity_q95","polity_q99","polity_max",
+        "polity_zero_frac","polity_var_mean",
         "at_risk_share_total","top5_share_students","student_zero_frac"
     ]
     rows = []
@@ -94,8 +94,8 @@ def make_table1(base_params: dict, seeds=range(1, 51), out_csv="table1_baseline.
     Saves per-run summaries and Table 1 to CSV.
     """
     keys = [
-        "class_mean","class_q50","class_q90","class_q95","class_q99","class_max",
-        "class_zero_frac","class_var_mean",
+        "polity_mean","polity_q50","polity_q90","polity_q95","polity_q99","polity_max",
+        "polity_zero_frac","polity_var_mean",
         "at_risk_share_total","top5_share_students","student_zero_frac",
         "control_days_total", "control_activation_count", "control_day_frac", 
         "trigger_day_frac", "incidents_mean_control_on",
@@ -148,12 +148,12 @@ def make_table1(base_params: dict, seeds=range(1, 51), out_csv="table1_baseline.
 
     return {k: (float(mu), float(sd)) for k, mu, sd in zip(keys, means, sds)}
 
-def pooled_tail_prob_class_counts(base_params: dict, seeds, threshold: int) -> float:
+def pooled_tail_prob_polity_counts(base_params: dict, seeds, threshold: int) -> float:
     pooled = []
     for sd in seeds:
         p = Params(**{**base_params, "seed": sd})
         out = simulate(p)
-        pooled.extend([r["incidents_class"] for r in out["class_day_records"]])
+        pooled.extend([r["incidents_polity"] for r in out["polity_day_records"]])
 
     pooled = np.array(pooled, dtype=int)
     return float((pooled >= threshold).mean())
@@ -183,10 +183,10 @@ def sweep_one_param(base_params: dict, param_name: str, values, seeds=range(1, 5
         out["top5_mean"], out["top5_sd"] = mu_sd("top5_share_students")
         out["top1_mean"], out["top1_sd"] = mu_sd("top1_share_students")
         # burstiness + level
-        out["class_mean_mean"], out["class_mean_sd"] = mu_sd("class_mean")
-        out["varmean_mean"], out["varmean_sd"] = mu_sd("class_var_mean")
+        out["polity_mean_mean"], out["polity_mean_sd"] = mu_sd("polity_mean")
+        out["varmean_mean"], out["varmean_sd"] = mu_sd("polity_var_mean")
         # pooled tail probability (more stable than per-run tails)
-        out["p_tail"] = pooled_tail_prob_class_counts({**base_params, param_name: v}, seeds, tail_threshold)
+        out["p_tail"] = pooled_tail_prob_polity_counts({**base_params, param_name: v}, seeds, tail_threshold)
 
         rows.append(out)
 
@@ -356,16 +356,16 @@ def plot_lorenz_from_model(
     print(f"Saved: {out_pdf}")
 
 
-def plot_ccdf_class_counts(
+def plot_ccdf_polity_counts(
     base_params: dict,
     seeds=range(1, 51),
-    out_png="fig2_ccdf_class_counts.png",
-    out_pdf="fig2_ccdf_class_counts.pdf",
+    out_png="fig2_ccdf_polity_counts.png",
+    out_pdf="fig2_ccdf_polity_counts.pdf",
     use_log_y=True,
 ):
     """
-    Figure 2: CCDF (survival function) of class-period incident counts.
-    Pools incidents_class across all class-periods and replications.
+    Figure 2: CCDF (survival function) of polity-period incident counts.
+    Pools incidents_polity across all polity-periods and replications.
     Saves PNG + PDF.
     """
     seeds = list(seeds)
@@ -376,8 +376,8 @@ def plot_ccdf_class_counts(
         p = Params(**{**base_params, "seed": sd})
    
         out = simulate(p)
-        # one count per class per day
-        counts = np.array([r["incidents_class"] for r in out["class_day_records"]], 
+        # one count per polity per day
+        counts = np.array([r["incidents_polity"] for r in out["polity_day_records"]], 
                           dtype=float)
         pooled_counts.append(counts)
 
@@ -423,7 +423,7 @@ def plot_ccdf_class_counts(
         bbox=dict(facecolor="white", edgecolor="none", alpha=0.85, pad=2)
     )
 
-    ax.step(x_plot, y_plot, where="post", label="CCDF of class-period incidents")
+    ax.step(x_plot, y_plot, where="post", label="CCDF of polity-period incidents")
     ax.set_xlim(0, xmax)
 
     # Now set y-limits based on what you're actually plotting
@@ -435,8 +435,8 @@ def plot_ccdf_class_counts(
     else:
         ax.set_ylim(0.0, 1.0)
 
-    ax.set_title("Class-Period Incident Counts (CCDF)")
-    ax.set_xlabel("Incidents per class-period")
+    ax.set_title("Polity-Period Incident Counts (CCDF)")
+    ax.set_xlabel("Incidents per polity-period")
     ax.set_ylabel("P(X >= x)")
 
     if use_log_y:
@@ -459,18 +459,18 @@ def plot_ccdf_class_counts(
     print(f"Saved: {out_png}")
     print(f"Saved: {out_pdf}")
 
-def tail_probabilities_class_counts(base_params: dict, seeds=range(1, 51), thresholds=(10, 20, 30)):
+def tail_probabilities_polity_counts(base_params: dict, seeds=range(1, 51), thresholds=(10, 20, 30)):
     seeds = list(seeds)
     pooled = []
 
     for sd in seeds:
         p = Params(**{**base_params, "seed": sd})
         out = simulate(p)
-        pooled.append([r["incidents_class"] for r in out["class_day_records"]])
+        pooled.append([r["incidents_polity"] for r in out["polity_day_records"]])
 
     pooled = np.array([x for sub in pooled for x in sub], dtype=int)
 
-    print("\nTail probabilities for class-period incident counts (pooled):")
+    print("\nTail probabilities for polity-period incident counts (pooled):")
     print(f"P(X = 0) = {(pooled == 0).mean():.3f}")
     for t in thresholds:
         print(f"P(X >= {t}) = {(pooled >= t).mean():.3f}")
@@ -513,7 +513,14 @@ def plot_lognormal_distribution(mu=-0.78, sigma=1.6, out_png="figures/fig_lognor
 
     
     ax.set_xlim(0, 2.5)
-    ax.plot(x, y)
+
+    # Note: The parameter mu describes the center of the distribution in log-space. Because 
+    # the lognormal is right-skewed, the actual average on the original scale is larger; 
+    # this is called the raw mean.
+    raw_mean = np.exp(mu + 0.5 * sigma**2)
+    ax.plot(x, y, label=f"μ = {mu:.2f}\nraw μ = {raw_mean:.2f}\nσ = {sigma:.2f}")
+    ax.legend(frameon=False, loc="upper right")
+
     ax.set_title("Lognormal Distribution")
 
     ax.set_xlabel("Risk")
@@ -544,14 +551,26 @@ def plot_gamma_distribution(k=0.5, theta=1.0, out_png="figures/fig_gamma.png"):
 
     fig = plt.figure(figsize=(6.5, 4.5))
     ax = plt.gca()
-    ax.plot(x, y)
+    mean_val = k * theta
+
+    ax.plot(x, y, label=f"k = {k:.2f}, θ = {theta:.2f}\nμ = {mean_val:.2f}")
+    ax.legend(frameon=False, loc="upper right")
     ax.set_xlim(0, 2)
     ax.set_ylim(0, 3)
-    ax.set_title("Gamma Distribution")
+    ax.set_title("Gamma Distribution (Latent Rate Volatility)") 
+    ax.text(
+        0.98, 0.85,
+        "Rate variability\nbefore Poisson events",
+        transform=ax.transAxes,
+        ha="right", va="top",
+        fontsize=9
+    )
     ax.set_xlabel("Latent Rate")
     ax.set_ylabel("Density")
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
+
+
 
     plt.tight_layout()
     if out_png:
@@ -578,9 +597,12 @@ def plot_poisson_distribution(lam=3.0, max_k=10, out_png="figures/fig_poisson.pn
     fig = plt.figure(figsize=(6.5, 4.5))
     ax = plt.gca()
 
-    markerline, stemlines, baseline = ax.stem(k_vals, y)
+    markerline, stemlines, baseline = ax.stem(
+        k_vals, y,
+        label=f"λ = {lam:.2f}\nexpected incidents per period"
+    )
     baseline.set_visible(False)
-    plt.setp(markerline, markersize=6)
+    plt.setp(markerline, markersize=5)
     plt.setp(stemlines, linewidth=1.5)
 
     ax.set_title("Poisson Event Count Distribution")
@@ -588,6 +610,75 @@ def plot_poisson_distribution(lam=3.0, max_k=10, out_png="figures/fig_poisson.pn
     ax.set_ylabel("Probability")
     ax.set_xlim(-0.5, max_k + 0.5)
     ax.set_ylim(0, max(y) * 1.12)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    ax.legend(frameon=False, loc="upper right")
+
+    plt.tight_layout()
+    if out_png:
+        plt.savefig(out_png)
+        print(f"Saved: {out_png}")
+    plt.close(fig)
+
+
+# The Negative Binomial PMF (Probability Mass Function) gives the probability 
+# that a Negative Binomial random variable takes a specific integer value.
+def negbin_pmf(x_vals, r, mean_):
+    """
+    Negative Binomial PMF parameterized by:
+    r = dispersion/shape
+    mean_ = desired mean
+
+    Uses:
+        p = r / (r + mean)
+        P(X=x) = C(x+r-1, x) * p^r * (1-p)^x
+    """
+    p = r / (r + mean_)
+    out = []
+    for x in x_vals:
+        coeff = math.gamma(x + r) / (math.gamma(r) * math.factorial(int(x)))
+        pmf = coeff * (p ** r) * ((1 - p) ** x)
+        out.append(pmf)
+    return np.array(out, dtype=float)
+
+# The Gamma–Poisson mixture implies a Negative Binomial count process, producing bursty, 
+# overdispersed event patterns consistent with empirical disruption data.
+def plot_negative_binomial_distribution(
+    r=0.5,
+    mean_=3.0,
+    max_x=20,
+    out_png="figures/fig_negative_binomial.png"
+):
+    x_vals = np.arange(0, max_x + 1)
+    y = negbin_pmf(x_vals, r, mean_)
+
+    plt.rcParams.update({
+        "figure.dpi": 120,
+        "savefig.dpi": 300,
+        "font.size": 11,
+        "axes.titlesize": 12,
+        "axes.labelsize": 11,
+        "xtick.labelsize": 10,
+        "ytick.labelsize": 10,
+        "lines.linewidth": 2.0,
+    })
+
+    fig = plt.figure(figsize=(6.5, 4.5))
+    ax = plt.gca()
+
+    markerline, stemlines, baseline = ax.stem(x_vals, y)
+    baseline.set_visible(False)
+    plt.setp(markerline, markersize=5)
+    plt.setp(stemlines, linewidth=1.5)
+
+    ax.set_title("Negative Binomial Count Distribution")
+    ax.set_xlabel("Incidents")
+    ax.set_ylabel("Probability")
+    ax.set_xlim(-0.5, max_x + 0.5)
+    ax.set_ylim(0, max(y) * 1.12)
+    ax.set_xticks(np.arange(0, max_x + 1, 2))
 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)

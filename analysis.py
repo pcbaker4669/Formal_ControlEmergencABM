@@ -5,6 +5,8 @@ import numpy as np
 import math
 import csv
 import matplotlib.pyplot as plt
+from scipy.stats import lognorm, gamma, poisson
+
 
 __all__ = [
     "make_table1",
@@ -226,8 +228,13 @@ def plot_sweep(rows, x_key="value", y_key="top5_mean", yerr_key="top5_sd",
     ax.spines["right"].set_visible(False)
 
     plt.tight_layout()
-    plt.savefig(out_png)
-    plt.savefig(out_pdf)
+
+    if out_png:
+        plt.savefig(out_png)
+
+    if out_pdf:
+        plt.savefig(out_pdf)
+
     plt.close(fig)
     print("Saved:", out_png, "and", out_pdf)
 
@@ -336,8 +343,13 @@ def plot_lorenz_from_model(
     ax.set_ylim(0, 1)
 
     plt.tight_layout()
-    plt.savefig(out_png)
-    plt.savefig(out_pdf)
+
+    if out_png:
+        plt.savefig(out_png)
+
+    if out_pdf:
+        plt.savefig(out_pdf)
+
     plt.close(fig)
 
     print(f"Saved: {out_png}")
@@ -435,8 +447,13 @@ def plot_ccdf_class_counts(
     ax.legend(loc="upper right", frameon=False)
 
     plt.tight_layout()
-    plt.savefig(out_png)
-    plt.savefig(out_pdf)
+
+    if out_png:
+        plt.savefig(out_png)
+
+    if out_pdf:
+        plt.savefig(out_pdf)
+
     plt.close(fig)
 
     print(f"Saved: {out_png}")
@@ -457,3 +474,126 @@ def tail_probabilities_class_counts(base_params: dict, seeds=range(1, 51), thres
     print(f"P(X = 0) = {(pooled == 0).mean():.3f}")
     for t in thresholds:
         print(f"P(X >= {t}) = {(pooled >= t).mean():.3f}")
+
+
+def lognormal_pdf(x, mu, sigma):
+    return (1.0 / (x * sigma * np.sqrt(2 * np.pi))) * np.exp(
+        -((np.log(x) - mu) ** 2) / (2 * sigma ** 2)
+    )
+
+
+def gamma_pdf(x, k, theta):
+    return (x ** (k - 1) * np.exp(-x / theta)) / (math.gamma(k) * (theta ** k))
+
+
+def poisson_pmf(k_vals, lam):
+    k_vals = np.asarray(k_vals, dtype=int)
+    return np.array([
+        (lam ** k) * np.exp(-lam) / math.factorial(int(k))
+        for k in k_vals
+    ])
+
+def plot_lognormal_distribution(mu=-0.78, sigma=1.6, out_png="figures/fig_lognormal.png"):
+    x = np.linspace(0.001, 2.5, 500)
+    y = lognormal_pdf(x, mu, sigma)
+
+    plt.rcParams.update({
+        "figure.dpi": 120,
+        "savefig.dpi": 300,
+        "font.size": 11,
+        "axes.titlesize": 12,
+        "axes.labelsize": 11,
+        "xtick.labelsize": 10,
+        "ytick.labelsize": 10,
+        "lines.linewidth": 2.0,
+    })
+
+    fig = plt.figure(figsize=(6.5, 4.5))
+    ax = plt.gca()
+
+    
+    ax.set_xlim(0, 2.5)
+    ax.plot(x, y)
+    ax.set_title("Lognormal Distribution")
+
+    ax.set_xlabel("Risk")
+    ax.set_ylabel("Density")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    plt.tight_layout()
+    if out_png:
+        plt.savefig(out_png)
+        print(f"Saved: {out_png}")
+    plt.close(fig)
+
+def plot_gamma_distribution(k=0.5, theta=1.0, out_png="figures/fig_gamma.png"):
+    x = np.linspace(0.001, 8, 500)
+    y = gamma_pdf(x, k, theta)
+
+    plt.rcParams.update({
+        "figure.dpi": 120,
+        "savefig.dpi": 300,
+        "font.size": 11,
+        "axes.titlesize": 12,
+        "axes.labelsize": 11,
+        "xtick.labelsize": 10,
+        "ytick.labelsize": 10,
+        "lines.linewidth": 2.0,
+    })
+
+    fig = plt.figure(figsize=(6.5, 4.5))
+    ax = plt.gca()
+    ax.plot(x, y)
+    ax.set_xlim(0, 2)
+    ax.set_ylim(0, 3)
+    ax.set_title("Gamma Distribution")
+    ax.set_xlabel("Latent Rate")
+    ax.set_ylabel("Density")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    plt.tight_layout()
+    if out_png:
+        plt.savefig(out_png)
+        print(f"Saved: {out_png}")
+    plt.close(fig)
+
+
+def plot_poisson_distribution(lam=3.0, max_k=10, out_png="figures/fig_poisson.png"):
+    k_vals = np.arange(0, max_k + 1)
+    y = poisson_pmf(k_vals, lam)
+
+    plt.rcParams.update({
+        "figure.dpi": 120,
+        "savefig.dpi": 300,
+        "font.size": 11,
+        "axes.titlesize": 12,
+        "axes.labelsize": 11,
+        "xtick.labelsize": 10,
+        "ytick.labelsize": 10,
+        "lines.linewidth": 2.0,
+    })
+
+    fig = plt.figure(figsize=(6.5, 4.5))
+    ax = plt.gca()
+
+    markerline, stemlines, baseline = ax.stem(k_vals, y)
+    baseline.set_visible(False)
+    plt.setp(markerline, markersize=6)
+    plt.setp(stemlines, linewidth=1.5)
+
+    ax.set_title("Poisson Event Count Distribution")
+    ax.set_xlabel("Incidents in a polity-period")
+    ax.set_ylabel("Probability")
+    ax.set_xlim(-0.5, max_k + 0.5)
+    ax.set_ylim(0, max(y) * 1.12)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    plt.tight_layout()
+    if out_png:
+        plt.savefig(out_png)
+        print(f"Saved: {out_png}")
+    plt.close(fig)

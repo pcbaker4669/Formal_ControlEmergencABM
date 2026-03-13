@@ -10,6 +10,9 @@ from analysis import (
     sweep_one_param,
     plot_sweep,
     plot_control_timeline,
+    plot_lognormal_distribution,
+    plot_gamma_distribution,
+    plot_poisson_distribution,
 )
 
 from model_core import Params, simulate
@@ -31,9 +34,29 @@ def main():
         if k not in ("figures_dir", "data_dir")
     }
 
+    plot_lognormal_distribution(
+        mu=model_params["risk_mu"],
+        sigma=model_params["risk_sigma"],
+        out_png=os.path.join(figures_dir, "fig_lognormal.png"),
+    )
+
+    plot_gamma_distribution(
+        k=model_params["nb_k"],
+        theta=1.0,
+        out_png=os.path.join(figures_dir, "fig_gamma.png"),
+    )
+
+    plot_poisson_distribution(
+        lam=3.0,
+        max_k=10,
+        out_png=os.path.join(figures_dir, "fig_poisson.png"),
+    )
+
     # --- Control strength demo: varying control_multiplier (0.5, 0.75, 1.0) with fixed duration=4, using baseline parameters otherwise ---
     base_for_timeline = dict(model_params)
     base_for_timeline["control_duration_days"] = 4
+
+
 
     for mult in (1.0, 0.75, 0.5):
         p = Params(**{**base_for_timeline, "control_multiplier": mult, "seed": 1})
@@ -85,7 +108,10 @@ def main():
     # --- Sensitivity / robustness (OFAT) using baseline parameters from config.json ---
 
     # Figure 3: Sensitivity of concentration (top 5% share) to risk dispersion (risk_sigma), varying risk_sigma values
-    rows_sigma = sweep_one_param(model_params, "risk_sigma", values=[1.0, 1.2, 1.4, 1.6, 1.8, 2.0], seeds=seeds)
+    seeds = range(1, 51)
+    rows_sigma = sweep_one_param(
+        model_params, "risk_sigma", 
+        values=[1.0, 1.2, 1.4, 1.6, 1.8, 2.0], seeds=seeds)
     plot_sweep(
         rows_sigma,
         y_key="top5_mean", yerr_key="top5_sd",
@@ -119,6 +145,7 @@ def main():
         out_png=os.path.join(figures_dir, "fig5_sweep_inc_base_rate_level.png"),
         out_pdf=None,
     )
+
 
 
 if __name__ == "__main__":
